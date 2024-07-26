@@ -34,6 +34,7 @@ class ucc_pt_coll {
     ucc_mc_buffer_header_t     *dst_header;
     ucc_mc_buffer_header_t     *src_header;
     ucc_mc_buffer_header_t     *global_work_buffer_header; // cyx add
+    ucc_mc_buffer_header_t     *allreduce_cyx_scratch_buffer_header; // cyx add
   public:
     ucc_pt_coll(ucc_pt_comm *communicator)
     {

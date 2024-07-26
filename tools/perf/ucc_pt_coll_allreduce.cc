@@ -25,16 +25,19 @@ ucc_pt_coll_allreduce::ucc_pt_coll_allreduce(
     if (comm->get_onesidesize()) {
         comm->set_send_recv_gwb_header(&src_header, &dst_header,
                                        &global_work_buffer_header);
+        allreduce_cyx_scratch_buffer_header = comm->get_acsb_hdr();
     }
 
-    coll_args.mask              = 0;
-    coll_args.flags             = 0;
-    coll_args.coll_type         = UCC_COLL_TYPE_ALLREDUCE;
-    coll_args.op                = op;
-    coll_args.src.info.datatype = dt;
-    coll_args.dst.info.datatype = dt;
-    coll_args.src.info.mem_type = mt;
-    coll_args.dst.info.mem_type = mt;
+    coll_args.mask                      = 0;
+    coll_args.flags                     = 0;
+    coll_args.coll_type                 = UCC_COLL_TYPE_ALLREDUCE;
+    coll_args.op                        = op;
+    coll_args.src.info.datatype         = dt;
+    coll_args.dst.info.datatype         = dt;
+    coll_args.src.info.mem_type         = mt;
+    coll_args.dst.info.mem_type         = mt;
+    coll_args.cyx_scratch.info.datatype = dt;
+    coll_args.cyx_scratch.info.mem_type = mt;
 
     if (is_inplace) {
         coll_args.mask  = UCC_COLL_ARGS_FIELD_FLAGS;
@@ -84,7 +87,10 @@ ucc_status_t ucc_pt_coll_allreduce::init_args(size_t              count,
         args.mask |=
             UCC_COLL_ARGS_FIELD_GLOBAL_WORK_BUFFER | UCC_COLL_ARGS_FIELD_FLAGS;
         args.global_work_buffer = global_work_buffer_header->addr;
-        
+
+        args.cyx_scratch.info.buffer = allreduce_cyx_scratch_buffer_header->addr;
+        args.cyx_scratch.info.count = count;
+
         args.flags |= UCC_COLL_ARGS_FLAG_MEM_MAPPED_BUFFERS;
     }
     // cyx add finished

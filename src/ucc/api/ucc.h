@@ -1845,6 +1845,9 @@ typedef struct ucc_coll_args {
         ucc_coll_buffer_info_t      info;   /*!< Buffer info for the collective */
         ucc_coll_buffer_info_v_t    info_v; /*!< Buffer info for the collective */
     } dst;
+    union {
+        ucc_coll_buffer_info_t      info;   /*!< Buffer info for the collective */
+    } cyx_scratch; // cyx add for allreduce_cyx
     ucc_reduction_op_t              op; /*!< Predefined reduction operation, if
                                              reduce, allreduce, reduce_scatter
                                              operation is selected.

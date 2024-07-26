@@ -137,6 +137,12 @@ typedef struct ucc_tl_ucp_task {
             ucc_tl_ucp_dpu_offload_buf_info_t         *bufs;
         } allreduce_sliding_window;
         struct {
+            long last_pSync; // 上次 progress 完检查到的 pSync
+            ucc_ee_executor_t      *executor; // 用来执行 reduce 计算的 executor
+            int phase;
+            ucc_ee_executor_task_t *reduce_task;
+        } allreduce_cyx;
+        struct {
             int                     phase;
             ucc_knomial_pattern_t   p;
             void                   *scratch;

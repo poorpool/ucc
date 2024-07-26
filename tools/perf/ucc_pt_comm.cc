@@ -51,6 +51,10 @@ ucc_mc_buffer_header_t* ucc_pt_comm::get_gwb_hdr() {
     return global_work_buffer_header;
 }
 
+ucc_mc_buffer_header_t* ucc_pt_comm::get_acsb_hdr() {
+    return allreduce_cyx_scratch_buffer_header;
+}
+
 void ucc_pt_comm::set_send_recv_gwb_header(ucc_mc_buffer_header_t **send_hdr,
                                            ucc_mc_buffer_header_t **recv_hdr,
                                            ucc_mc_buffer_header_t **gwb_hdr)
@@ -183,7 +187,7 @@ ucc_status_t ucc_pt_comm::init()
     ctx_params.type = UCC_CONTEXT_SHARED;
     ctx_params.oob  = bootstrap->get_context_oob();
     // cyx_add
-    ucc_mem_map_t segments[3];
+    ucc_mem_map_t segments[4];
     if (cfg.oneside_buffer_size > 0) {
         UCCCHECK_GOTO(
             ucc_pt_alloc(&send_header, cfg.oneside_buffer_size, cfg.mt),
@@ -195,15 +199,20 @@ ucc_status_t ucc_pt_comm::init()
         UCCCHECK_GOTO(ucc_pt_alloc(&global_work_buffer_header,
                                    cfg.oneside_buffer_size, cfg.mt),
                       free_ctx_config, st);
+        UCCCHECK_GOTO(ucc_pt_alloc(&allreduce_cyx_scratch_buffer_header,
+                                   cfg.oneside_buffer_size, cfg.mt),
+                      free_ctx_config, st);
         segments[0].address = send_header->addr;
         segments[0].len     = cfg.oneside_buffer_size;
         segments[1].address = recv_header->addr;
         segments[1].len     = cfg.oneside_buffer_size;
         segments[2].address = global_work_buffer_header->addr;
         segments[2].len     = cfg.oneside_buffer_size;
+        segments[3].address = allreduce_cyx_scratch_buffer_header->addr;
+        segments[3].len     = cfg.oneside_buffer_size;
         ctx_params.mask |= UCC_CONTEXT_PARAM_FIELD_MEM_PARAMS;
         ctx_params.mem_params.segments   = segments;
-        ctx_params.mem_params.n_segments = 3;
+        ctx_params.mem_params.n_segments = 4;
     }
     // cyx add end
     UCCCHECK_GOTO(ucc_context_create(lib, &ctx_params, ctx_config, &context),

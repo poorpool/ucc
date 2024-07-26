@@ -31,10 +31,13 @@ class ucc_pt_comm {
     ucc_ee_h                ee;
     ucc_ee_executor_t      *executor;
     ucc_pt_bootstrap       *bootstrap;
-    ucc_mc_buffer_header_t *send_header;
-    ucc_mc_buffer_header_t *recv_header;
-    ucc_mc_buffer_header_t *global_work_buffer_header;
-    void                    set_gpu_device();
+    ucc_mc_buffer_header_t *send_header; // cyx add: for oneside src
+    ucc_mc_buffer_header_t *recv_header; // cyx add: for oneside dst
+    ucc_mc_buffer_header_t
+        *global_work_buffer_header; // cyx add: for oneside gwb
+    ucc_mc_buffer_header_t  *
+        allreduce_cyx_scratch_buffer_header; // cyx add: for allreduce_cyx (oneside) scratch buffer
+    void set_gpu_device();
 
   public:
     ucc_pt_comm(ucc_pt_comm_config config);
@@ -44,7 +47,8 @@ class ucc_pt_comm {
     void   set_send_recv_gwb_header(ucc_mc_buffer_header_t **send_hdr,
                                     ucc_mc_buffer_header_t **recv_hdr,
                                     ucc_mc_buffer_header_t **gwb_hdr); // cyx add
-    ucc_mc_buffer_header_t *get_gwb_hdr();
+    ucc_mc_buffer_header_t *get_gwb_hdr(); // cyx add
+    ucc_mc_buffer_header_t *get_acsb_hdr(); // cyx add
     ucc_ee_executor_t      *get_executor();
     ucc_ee_h                get_ee();
     ucc_team_h              get_team();

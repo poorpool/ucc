@@ -35,13 +35,11 @@ ucc_status_t ucc_tl_ucp_allreduce_init(ucc_tl_ucp_task_t *task);
         }                                                                      \
     } while (0)
 
-#define ALLREDUCE_TASK_CHECK(_args, _team)                                     \
-    CHECK_SAME_MEMTYPE((_args), (_team));
-
+#define ALLREDUCE_TASK_CHECK(_args, _team) CHECK_SAME_MEMTYPE((_args), (_team));
 
 ucc_status_t ucc_tl_ucp_allreduce_knomial_init(ucc_base_coll_args_t *coll_args,
-                                               ucc_base_team_t *team,
-                                               ucc_coll_task_t **task_h);
+                                               ucc_base_team_t      *team,
+                                               ucc_coll_task_t     **task_h);
 
 ucc_status_t
 ucc_tl_ucp_allreduce_sliding_window_init(ucc_base_coll_args_t *coll_args,
@@ -62,25 +60,36 @@ ucc_tl_ucp_allreduce_sliding_window_finalize(ucc_coll_task_t *task);
 
 ucc_status_t ucc_tl_ucp_allreduce_knomial_finalize(ucc_coll_task_t *task);
 
-ucc_status_t ucc_tl_ucp_allreduce_sra_knomial_init(ucc_base_coll_args_t *coll_args,
-                                                   ucc_base_team_t *team,
-                                                   ucc_coll_task_t **task_h);
+ucc_status_t
+ucc_tl_ucp_allreduce_sra_knomial_init(ucc_base_coll_args_t *coll_args,
+                                      ucc_base_team_t      *team,
+                                      ucc_coll_task_t     **task_h);
 
 ucc_status_t ucc_tl_ucp_allreduce_sra_knomial_start(ucc_coll_task_t *task);
 
 ucc_status_t ucc_tl_ucp_allreduce_sra_knomial_progress(ucc_coll_task_t *task);
 
 ucc_status_t ucc_tl_ucp_allreduce_dbt_init(ucc_base_coll_args_t *coll_args,
-                                           ucc_base_team_t *team,
-                                           ucc_coll_task_t **task_h);
+                                           ucc_base_team_t      *team,
+                                           ucc_coll_task_t     **task_h);
 
 ucc_status_t ucc_tl_ucp_allreduce_dbt_start(ucc_coll_task_t *task);
 
 ucc_status_t ucc_tl_ucp_allreduce_dbt_progress(ucc_coll_task_t *task);
 
+// 外部调用这个
 ucc_status_t ucc_tl_ucp_allreduce_cyx_init(ucc_base_coll_args_t *coll_args,
                                            ucc_base_team_t      *team,
                                            ucc_coll_task_t     **task_h);
+
+// 在 ucc_tl_ucp_allreduce_cyx_init 中被登记
+ucc_status_t ucc_tl_ucp_allreduce_cyx_start(ucc_coll_task_t *coll_task);
+
+// 在 ucc_tl_ucp_allreduce_cyx_init 中被登记
+void ucc_tl_ucp_allreduce_cyx_progress(ucc_coll_task_t *coll_task);
+
+// 在 ucc_tl_ucp_allreduce_cyx_init 中被登记
+ucc_status_t ucc_tl_ucp_allreduce_cyx_finalize(ucc_coll_task_t *coll_task);
 
 static inline int ucc_tl_ucp_allreduce_alg_from_str(const char *str)
 {
