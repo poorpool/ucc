@@ -47,6 +47,10 @@ size_t ucc_pt_comm::get_onesidesize()
     return cfg.oneside_buffer_size;
 }
 
+ucc_mc_buffer_header_t* ucc_pt_comm::get_gwb_hdr() {
+    return global_work_buffer_header;
+}
+
 void ucc_pt_comm::set_send_recv_gwb_header(ucc_mc_buffer_header_t **send_hdr,
                                            ucc_mc_buffer_header_t **recv_hdr,
                                            ucc_mc_buffer_header_t **gwb_hdr)

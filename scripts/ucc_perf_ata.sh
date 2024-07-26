@@ -4,7 +4,7 @@ export OMPI_DIR=/home/cyx/chores/tmpinstall
 export PATH=$OMPI_DIR/bin:$PATH
 export LD_LIBRARY_PATH=$OMPI_DIR/lib:$LD_LIBRARY_PATH
 
-NUMBER_OF_NODES=2
+NUMBER_OF_NODES=28
 MIN_MESSAGE_SIZE=16384 # in bytes
 MAX_MESSAGE_SIZE=16777216 # 16777216
 HOST_FILE=/home/cyx/chores/ucc/scripts/mpi_hosts

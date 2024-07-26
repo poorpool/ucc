@@ -44,10 +44,11 @@ class ucc_pt_comm {
     void   set_send_recv_gwb_header(ucc_mc_buffer_header_t **send_hdr,
                                     ucc_mc_buffer_header_t **recv_hdr,
                                     ucc_mc_buffer_header_t **gwb_hdr); // cyx add
-    ucc_ee_executor_t *get_executor();
-    ucc_ee_h           get_ee();
-    ucc_team_h         get_team();
-    ucc_context_h      get_context();
+    ucc_mc_buffer_header_t *get_gwb_hdr();
+    ucc_ee_executor_t      *get_executor();
+    ucc_ee_h                get_ee();
+    ucc_team_h              get_team();
+    ucc_context_h           get_context();
     ~ucc_pt_comm();
     ucc_status_t init();
     ucc_status_t barrier();
