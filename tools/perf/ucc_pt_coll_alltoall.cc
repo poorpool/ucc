@@ -23,7 +23,7 @@ ucc_pt_coll_alltoall::ucc_pt_coll_alltoall(ucc_datatype_t  dt,
     has_range_     = true;
     has_bw_        = true;
     root_shift_    = 0;
-    if (comm->get_isoneside()) {
+    if (comm->get_onesidesize()) {
         comm->set_send_recv_gwb_header(&src_header, &dst_header,
                                        &global_work_buffer_header);
     }
@@ -58,7 +58,13 @@ ucc_status_t ucc_pt_coll_alltoall::init_args(size_t single_rank_count,
 
     args                = coll_args;
     args.dst.info.count = single_rank_count * comm_size;
-    if (!comm->get_isoneside()) {
+    if (size > comm->get_onesidesize()) {
+        fprintf(
+            stderr,
+            "Too small one_side_buf_size %lu (added by cyx), should be %lu\n",
+            comm->get_onesidesize(), size);
+    }
+    if (!comm->get_onesidesize()) {
         UCCCHECK_GOTO(ucc_pt_alloc(&dst_header, size, args.dst.info.mem_type),
                       exit, st);
     }
@@ -66,7 +72,7 @@ ucc_status_t ucc_pt_coll_alltoall::init_args(size_t single_rank_count,
 
     if (!UCC_IS_INPLACE(args)) {
         args.src.info.count = single_rank_count * comm_size;
-        if (!comm->get_isoneside()) {
+        if (!comm->get_onesidesize()) {
             UCCCHECK_GOTO(
                 ucc_pt_alloc(&src_header, size, args.src.info.mem_type),
                 free_dst, st);
@@ -74,24 +80,16 @@ ucc_status_t ucc_pt_coll_alltoall::init_args(size_t single_rank_count,
         args.src.info.buffer = src_header->addr;
     }
     // cyx add
-    if (comm->get_isoneside()) {
+    if (comm->get_onesidesize()) {
         args.mask |=
             UCC_COLL_ARGS_FIELD_GLOBAL_WORK_BUFFER | UCC_COLL_ARGS_FIELD_FLAGS;
         args.global_work_buffer = global_work_buffer_header->addr;
         args.flags |= UCC_COLL_ARGS_FLAG_MEM_MAPPED_BUFFERS;
     }
-    // fprintf()
-    // if (comm->get_isoneside()) {
-    //     ucp_mem_map_params_t mmap_params = {0};
-    //     mmap_params.field_mask
-    //     fprintf(stderr, "cyx debugging success in comm->get_isoneside() "
-    //                     "ucc_pt_coll_alltoall\n");
-    // }
-
     // cyx add finished
     return UCC_OK;
 free_dst:
-    if (!comm->get_isoneside()) {
+    if (!comm->get_onesidesize()) {
         ucc_pt_free(dst_header);
     }
 exit:
@@ -102,7 +100,7 @@ void ucc_pt_coll_alltoall::free_args(ucc_pt_test_args_t &test_args)
 {
     ucc_coll_args_t &args = test_args.coll_args;
 
-    if (!comm->get_isoneside()) {
+    if (!comm->get_onesidesize()) {
         if (!UCC_IS_INPLACE(args)) {
             ucc_pt_free(src_header);
         }

@@ -38,12 +38,12 @@ class ucc_pt_comm {
 
   public:
     ucc_pt_comm(ucc_pt_comm_config config);
-    int get_rank();
-    int get_size();
-    int get_isoneside(); // cyx add
-    void set_send_recv_gwb_header(ucc_mc_buffer_header_t **send_hdr,
-                                 ucc_mc_buffer_header_t **recv_hdr,
-                                 ucc_mc_buffer_header_t **gwb_hdr); // cyx add
+    int    get_rank();
+    int    get_size();
+    size_t get_onesidesize(); // cyx add
+    void   set_send_recv_gwb_header(ucc_mc_buffer_header_t **send_hdr,
+                                    ucc_mc_buffer_header_t **recv_hdr,
+                                    ucc_mc_buffer_header_t **gwb_hdr); // cyx add
     ucc_ee_executor_t *get_executor();
     ucc_ee_h           get_ee();
     ucc_team_h         get_team();

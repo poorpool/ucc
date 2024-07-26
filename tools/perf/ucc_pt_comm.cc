@@ -42,9 +42,9 @@ int ucc_pt_comm::get_rank()
     return bootstrap->get_rank();
 }
 
-int ucc_pt_comm::get_isoneside()
+size_t ucc_pt_comm::get_onesidesize()
 {
-    return cfg.oneside_buffer_size > 0;
+    return cfg.oneside_buffer_size;
 }
 
 void ucc_pt_comm::set_send_recv_gwb_header(ucc_mc_buffer_header_t **send_hdr,
@@ -181,9 +181,9 @@ ucc_status_t ucc_pt_comm::init()
     // cyx_add
     ucc_mem_map_t segments[3];
     if (cfg.oneside_buffer_size > 0) {
-        fprintf(stderr,
-                "cyx debug in ucc_pt_comm::init we find oneside bufsize %lu\n",
-                cfg.oneside_buffer_size);
+        // fprintf(stderr,
+        //         "cyx debug in ucc_pt_comm::init we find oneside bufsize %lu\n",
+        //         cfg.oneside_buffer_size);
         UCCCHECK_GOTO(
             ucc_pt_alloc(&send_header, cfg.oneside_buffer_size, cfg.mt),
             free_ctx_config, st);
@@ -196,9 +196,9 @@ ucc_status_t ucc_pt_comm::init()
                       free_ctx_config, st);
         segments[0].address = send_header->addr;
         segments[0].len     = cfg.oneside_buffer_size;
-        segments[1].address = send_header->addr;
+        segments[1].address = recv_header->addr;
         segments[1].len     = cfg.oneside_buffer_size;
-        segments[2].address = send_header->addr;
+        segments[2].address = global_work_buffer_header->addr;
         segments[2].len     = cfg.oneside_buffer_size;
         ctx_params.mask |= UCC_CONTEXT_PARAM_FIELD_MEM_PARAMS;
         ctx_params.mem_params.segments   = segments;
