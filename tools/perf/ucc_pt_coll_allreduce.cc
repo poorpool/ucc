@@ -22,6 +22,10 @@ ucc_pt_coll_allreduce::ucc_pt_coll_allreduce(
     has_range_     = true;
     has_bw_        = true;
     root_shift_    = 0;
+    if (comm->get_onesidesize()) {
+        comm->set_send_recv_gwb_header(&src_header, &dst_header,
+                                       &global_work_buffer_header);
+    }
 
     coll_args.mask              = 0;
     coll_args.flags             = 0;
@@ -55,32 +59,37 @@ ucc_status_t ucc_pt_coll_allreduce::init_args(size_t              count,
     args.src.info.count = count;
     args.dst.info.count = count;
 
-    UCCCHECK_GOTO(ucc_pt_alloc(&dst_header, size, args.dst.info.mem_type), exit,
-                  st);
+    if (size > comm->get_onesidesize()) {
+        fprintf(
+            stderr,
+            "Too small one_side_buf_size %lu (added by cyx), should be %lu\n",
+            comm->get_onesidesize(), size);
+    }
+
+    if (!comm->get_onesidesize()) {
+        UCCCHECK_GOTO(ucc_pt_alloc(&dst_header, size, args.dst.info.mem_type),
+                      exit, st);
+    }
     args.dst.info.buffer = dst_header->addr;
     if (!UCC_IS_INPLACE(args)) {
-        UCCCHECK_GOTO(ucc_pt_alloc(&src_header, size, args.src.info.mem_type),
-                      free_dst, st);
+        if (!comm->get_onesidesize()) {
+            UCCCHECK_GOTO(
+                ucc_pt_alloc(&src_header, size, args.src.info.mem_type),
+                free_dst, st);
+        }
         args.src.info.buffer = src_header->addr;
     }
     // cyx add: set global work buffer for sw
-    ucc_context_attr_t attr;
-    memset(&attr, 0, sizeof(attr));
-    attr.mask = UCC_CONTEXT_ATTR_FIELD_WORK_BUFFER_SIZE;
-    uint64_t global_work_buffer_size;
-    UCCCHECK_GOTO(ucc_context_get_attr(comm->get_context(), &attr), free_src,
-                  st);
-    global_work_buffer_size = attr.global_work_buffer_size;
-    args.mask |= UCC_COLL_ARGS_FIELD_GLOBAL_WORK_BUFFER;
-    UCCCHECK_GOTO(ucc_pt_alloc(&global_work_buffer_header,
-                               global_work_buffer_size, args.src.info.mem_type),
-                  free_src, st); // TODO_CYX
-    args.global_work_buffer = global_work_buffer_header->addr;
+    if (comm->get_onesidesize()) {
+        args.mask |=
+            UCC_COLL_ARGS_FIELD_GLOBAL_WORK_BUFFER | UCC_COLL_ARGS_FIELD_FLAGS;
+        args.global_work_buffer = global_work_buffer_header->addr;
+        
+        args.flags |= UCC_COLL_ARGS_FLAG_MEM_MAPPED_BUFFERS;
+    }
     // cyx add finished
 
     return UCC_OK;
-free_src:
-    ucc_pt_free(src_header);
 free_dst:
     ucc_pt_free(dst_header);
 exit:
@@ -91,11 +100,12 @@ void ucc_pt_coll_allreduce::free_args(ucc_pt_test_args_t &test_args)
 {
     ucc_coll_args_t &args = test_args.coll_args;
 
-    ucc_pt_free(global_work_buffer_header);
-    if (!UCC_IS_INPLACE(args)) {
-        ucc_pt_free(src_header);
+    if (!comm->get_onesidesize()) {
+        if (!UCC_IS_INPLACE(args)) {
+            ucc_pt_free(src_header);
+        }
+        ucc_pt_free(dst_header);
     }
-    ucc_pt_free(dst_header);
 }
 
 float ucc_pt_coll_allreduce::get_bw(float time_ms, int grsize,

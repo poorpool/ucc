@@ -29,6 +29,10 @@ ucc_base_coll_alg_info_t
             {.id   = UCC_TL_UCP_ALLREDUCE_ALG_SLIDING_WINDOW,
              .name = "sliding_window",
              .desc = "sliding window allreduce (optimized for running on DPU)"},
+        [UCC_TL_UCP_ALLREDUCE_ALG_CYX] =
+            {.id   = UCC_TL_UCP_ALLREDUCE_ALG_CYX,
+             .name = "cyx",
+             .desc = "cyx allreduce (optimized for rdma competition)"},
         [UCC_TL_UCP_ALLREDUCE_ALG_LAST] = {
             .id = 0, .name = NULL, .desc = NULL}};
 

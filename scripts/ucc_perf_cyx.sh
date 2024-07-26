@@ -22,14 +22,17 @@ if (( MAX_MESSAGE_SIZE % 4 != 0 )); then
 else
   MAX_COUNTS=$((MAX_MESSAGE_SIZE / 4))
 fi
-MAX_ONESIDE_BUFFER_SIZE=$((MAX_MESSAGE_SIZE * NUMBER_OF_NODES))
+MAX_ONESIDE_BUFFER_SIZE=$MAX_MESSAGE_SIZE # 疑似应该除以2
 
 mpirun -np $NUMBER_OF_NODES -hostfile $HOST_FILE \
   -mca pml ucx -mca btl ^vader,tcp,openib,uct \
   -x LD_LIBRARY_PATH=$LD_LIBRARY_PATH \
   -x OMPI_MCA_coll_ucc_enable=1 \
   -x OMPI_MCA_coll_ucc_priority=100 \
-  -x UCC_TL_UCP_TUNE="alltoall:0-inf:@2" \
-  ucc_perftest -c alltoall -b $MIN_COUNTS -e $MAX_COUNTS -O $MAX_ONESIDE_BUFFER_SIZE -d float32
-# alltoall 需要自己指定 -O $MAX_ONESIDE_BUFFER_SIZE，但是 allreduce 的 sw 实现不需要
+  -x UCC_TL_UCP_TUNE="allreduce:4k-inf:@cyx" \
+  ucc_perftest -c allreduce -b $MIN_COUNTS -e $MAX_COUNTS -d float32 -O $MAX_ONESIDE_BUFFER_SIZE
 # -c alltoall -b 16384 -e 16777216
+#  -O $MAX_ONESIDE_BUFFER_SIZE
+# alltoall 需要自己指定 -O $MAX_ONESIDE_BUFFER_SIZE，但是 allreduce 的 sw 实现不需要
+# allreduce只用传 global_work_buffer就行了，他也没检查。。。
+# 注意：allreduce不能从很小的就开始设置为 sw 算法。因为 MPI 或者

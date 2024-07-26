@@ -45,7 +45,8 @@ allreduce =                           \
 	allreduce/allreduce_sliding_window.h       \
 	allreduce/allreduce_sliding_window.c       \
 	allreduce/allreduce_sliding_window_setup.c \
-	allreduce/allreduce_dbt.c
+	allreduce/allreduce_dbt.c									 \
+	allreduce/allreduce_cyx.c
 
 barrier =                     \
 	barrier/barrier.h         \
