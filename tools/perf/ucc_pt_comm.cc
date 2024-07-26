@@ -181,9 +181,6 @@ ucc_status_t ucc_pt_comm::init()
     // cyx_add
     ucc_mem_map_t segments[3];
     if (cfg.oneside_buffer_size > 0) {
-        // fprintf(stderr,
-        //         "cyx debug in ucc_pt_comm::init we find oneside bufsize %lu\n",
-        //         cfg.oneside_buffer_size);
         UCCCHECK_GOTO(
             ucc_pt_alloc(&send_header, cfg.oneside_buffer_size, cfg.mt),
             free_ctx_config, st);

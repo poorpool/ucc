@@ -82,8 +82,7 @@ ucc_status_t ucc_tl_ucp_alltoall_onesided_init(ucc_base_coll_args_t *coll_args,
     ALLTOALL_TASK_CHECK(coll_args->args, tl_team);
 
     if (!(coll_args->args.mask & UCC_COLL_ARGS_FIELD_GLOBAL_WORK_BUFFER)) {
-        fprintf(stderr, "cyx debug: wtf? no mask gwb %lu\n",
-                coll_args->args.mask);
+
         tl_error(UCC_TL_TEAM_LIB(tl_team),
                  "global work buffer not provided nor associated with team");
         status = UCC_ERR_NOT_SUPPORTED;

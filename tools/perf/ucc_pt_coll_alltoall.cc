@@ -84,6 +84,7 @@ ucc_status_t ucc_pt_coll_alltoall::init_args(size_t single_rank_count,
         args.mask |=
             UCC_COLL_ARGS_FIELD_GLOBAL_WORK_BUFFER | UCC_COLL_ARGS_FIELD_FLAGS;
         args.global_work_buffer = global_work_buffer_header->addr;
+        
         args.flags |= UCC_COLL_ARGS_FLAG_MEM_MAPPED_BUFFERS;
     }
     // cyx add finished

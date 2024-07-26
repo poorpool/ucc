@@ -257,12 +257,10 @@ ucc_tl_ucp_resolve_p2p_by_va(ucc_tl_ucp_team_t *team, void *va, ucp_ep_h *ep,
     key_sizes   = PTR_OFFSET(base_offset, (section_offset * 2));
     keys        = PTR_OFFSET(base_offset, (section_offset * 3));
 
-    // fprintf(stderr, "cyx debug ctx->n_rinfo_segs %ld\n", ctx->n_rinfo_segs);
     for (int i = 0; i < ctx->n_rinfo_segs; i++) {
         uint64_t base = (uint64_t)team->va_base[i];
         uint64_t end  = base + team->base_length[i];
-        // fprintf(stderr, "cyx debug nrinfosegs %d base %lx end %lx\n", i, base,
-        //         end);
+
         if ((uint64_t)va >= base && (uint64_t)va < end) {
             *segment = i;
             break;

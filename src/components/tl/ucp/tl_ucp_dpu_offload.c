@@ -31,10 +31,11 @@ ucc_status_t ucc_tl_ucp_allreduce_sliding_window_register(
     if (UCS_OK != ucs_status) {
         unmap_status = ucp_mem_unmap(ucp_context, ebuf->memh);
         tl_error(UCC_TL_TEAM_LIB(tl_team),
-            "ucp_rkey_pack() returned error: %s%s",
-            ucs_status_string(ucs_status),
-            unmap_status == UCS_OK ? "" : 
-            ". While handling this error, unmapping the memh had an error");
+                 "ucp_rkey_pack() returned error: %s%s",
+                 ucs_status_string(ucs_status),
+                 unmap_status == UCS_OK ? ""
+                                        : ". While handling this error, "
+                                          "unmapping the memh had an error");
         return ucs_status_to_ucc_status(ucs_status);
     }
 

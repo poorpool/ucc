@@ -31,4 +31,5 @@ mpirun -np $NUMBER_OF_NODES -hostfile $HOST_FILE \
   -x OMPI_MCA_coll_ucc_priority=100 \
   -x UCC_TL_UCP_TUNE="alltoall:0-inf:@2" \
   ucc_perftest -c alltoall -b $MIN_COUNTS -e $MAX_COUNTS -O $MAX_ONESIDE_BUFFER_SIZE -d float32
+# alltoall 需要自己指定 -O $MAX_ONESIDE_BUFFER_SIZE，但是 allreduce 的 sw 实现不需要
 # -c alltoall -b 16384 -e 16777216
