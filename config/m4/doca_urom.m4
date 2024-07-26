@@ -18,7 +18,7 @@ AS_IF([test "x$doca_urom_checked" != "xyes"],[
             AS_IF([test ! -d $with_doca_urom],
                   [AC_MSG_ERROR([Provided "--with-doca_urom=${with_doca_urom}" location does not exist])])
             check_doca_urom_dir="$with_doca_urom"
-            check_doca_urom_libdir="$with_doca_urom/lib64"
+            check_doca_urom_libdir="$with_doca_urom/lib/x86_64-linux-gnu"
             CPPFLAGS="-I$with_doca_urom/include $UCS_CPPFLAGS $save_CPPFLAGS"
             LDFLAGS="-L$check_doca_urom_libdir $save_LDFLAGS"
         ])

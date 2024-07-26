@@ -28,6 +28,7 @@ struct ucc_pt_bootstrap_config {
 
 struct ucc_pt_comm_config {
     ucc_memory_type_t mt;
+    size_t            oneside_buffer_size; // cyx add
 };
 
 typedef enum {
@@ -53,12 +54,12 @@ typedef enum {
     UCC_PT_OP_TYPE_LAST
 } ucc_pt_op_type_t;
 
-static inline const char* ucc_pt_op_type_str(ucc_pt_op_type_t op)
+static inline const char *ucc_pt_op_type_str(ucc_pt_op_type_t op)
 {
     if ((uint64_t)op < (uint64_t)UCC_COLL_TYPE_LAST) {
         return ucc_coll_type_str((ucc_coll_type_t)op);
     }
-    switch(op) {
+    switch (op) {
     case UCC_PT_OP_TYPE_MEMCPY:
         return "Memcpy";
     case UCC_PT_OP_TYPE_REDUCEDT:
@@ -91,6 +92,7 @@ struct ucc_pt_benchmark_config {
     int                root;
     int                root_shift;
     int                mult_factor;
+    size_t oneside_buffer_size; // cyx add。需要用户自己根据字节数和进程数估算
 };
 
 struct ucc_pt_config {
@@ -100,7 +102,7 @@ struct ucc_pt_config {
 
     ucc_pt_config();
     ucc_status_t process_args(int argc, char *argv[]);
-    void print_help();
+    void         print_help();
 };
 
 #endif

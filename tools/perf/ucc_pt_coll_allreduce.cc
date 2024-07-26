@@ -10,16 +10,21 @@
 #include <utils/ucc_math.h>
 #include <utils/ucc_coll_utils.h>
 
-ucc_pt_coll_allreduce::ucc_pt_coll_allreduce(ucc_datatype_t dt,
-                         ucc_memory_type mt, ucc_reduction_op_t op,
-                         bool is_inplace, bool is_persistent,
-                         ucc_pt_comm *communicator) : ucc_pt_coll(communicator)
+// 构造函数
+ucc_pt_coll_allreduce::ucc_pt_coll_allreduce(
+    ucc_datatype_t dt, ucc_memory_type mt, ucc_reduction_op_t op,
+    bool is_inplace, bool is_persistent, ucc_pt_comm *communicator)
+    : ucc_pt_coll(communicator)
 {
     has_inplace_   = true;
     has_reduction_ = true;
     has_range_     = true;
     has_bw_        = true;
     root_shift_    = 0;
+    if (comm->get_isoneside()) {
+        comm->set_send_recv_gwb_header(&src_header, &dst_header,
+                                       &global_work_buffer_header);
+    }
 
     coll_args.mask              = 0;
     coll_args.flags             = 0;
@@ -36,13 +41,12 @@ ucc_pt_coll_allreduce::ucc_pt_coll_allreduce(ucc_datatype_t dt,
     }
 
     if (is_persistent) {
-        coll_args.mask  |= UCC_COLL_ARGS_FIELD_FLAGS;
+        coll_args.mask |= UCC_COLL_ARGS_FIELD_FLAGS;
         coll_args.flags |= UCC_COLL_ARGS_FLAG_PERSISTENT;
-
     }
 }
 
-ucc_status_t ucc_pt_coll_allreduce::init_args(size_t count,
+ucc_status_t ucc_pt_coll_allreduce::init_args(size_t              count,
                                               ucc_pt_test_args_t &test_args)
 {
     ucc_coll_args_t &args    = test_args.coll_args;
@@ -50,20 +54,34 @@ ucc_status_t ucc_pt_coll_allreduce::init_args(size_t count,
     size_t           size    = count * dt_size;
     ucc_status_t     st      = UCC_OK;
 
-    args = coll_args;
+    args                = coll_args;
     args.src.info.count = count;
     args.dst.info.count = count;
-    UCCCHECK_GOTO(ucc_pt_alloc(&dst_header, size, args.dst.info.mem_type), exit,
-                  st);
+    if (!comm->get_isoneside()) {
+        UCCCHECK_GOTO(ucc_pt_alloc(&dst_header, size, args.dst.info.mem_type),
+                      exit, st);
+    }
     args.dst.info.buffer = dst_header->addr;
     if (!UCC_IS_INPLACE(args)) {
-        UCCCHECK_GOTO(ucc_pt_alloc(&src_header, size, args.src.info.mem_type),
-                      free_dst, st);
+        if (!comm->get_isoneside()) {
+            UCCCHECK_GOTO(
+                ucc_pt_alloc(&src_header, size, args.src.info.mem_type),
+                free_dst, st);
+        }
         args.src.info.buffer = src_header->addr;
     }
+    // cyx add
+    if (comm->get_isoneside()) {
+        args.mask |= UCC_COLL_ARGS_FIELD_GLOBAL_WORK_BUFFER;
+        args.global_work_buffer = global_work_buffer_header->addr;
+    }
+    // cyx add finished
+
     return UCC_OK;
 free_dst:
-    ucc_pt_free(dst_header);
+    if (!comm->get_isoneside()) {
+        ucc_pt_free(dst_header);
+    }
 exit:
     return st;
 }
@@ -72,10 +90,12 @@ void ucc_pt_coll_allreduce::free_args(ucc_pt_test_args_t &test_args)
 {
     ucc_coll_args_t &args = test_args.coll_args;
 
-    if (!UCC_IS_INPLACE(args)) {
-        ucc_pt_free(src_header);
+    if (!comm->get_isoneside()) {
+        if (!UCC_IS_INPLACE(args)) {
+            ucc_pt_free(src_header);
+        }
+        ucc_pt_free(dst_header);
     }
-    ucc_pt_free(dst_header);
 }
 
 float ucc_pt_coll_allreduce::get_bw(float time_ms, int grsize,
@@ -83,8 +103,7 @@ float ucc_pt_coll_allreduce::get_bw(float time_ms, int grsize,
 {
     ucc_coll_args_t &args = test_args.coll_args;
     float            N    = grsize;
-    float            S    = args.src.info.count *
-                            ucc_dt_size(args.src.info.datatype);
+    float S = args.src.info.count * ucc_dt_size(args.src.info.datatype);
 
     return (S / time_ms) * (2 * (N - 1) / N) / 1000.0;
 }

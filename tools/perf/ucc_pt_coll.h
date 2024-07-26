@@ -14,36 +14,33 @@ extern "C" {
 #include <components/mc/ucc_mc.h>
 }
 
-ucc_status_t ucc_pt_alloc(ucc_mc_buffer_header_t **h_ptr, size_t len,
-                          ucc_memory_type_t mem_type);
-
-ucc_status_t ucc_pt_free(ucc_mc_buffer_header_t *h_ptr);
-
 typedef union {
     ucc_coll_args_t             coll_args;
     ucc_ee_executor_task_args_t executor_args;
 } ucc_pt_test_args_t;
 
 class ucc_pt_coll {
-protected:
-    bool has_inplace_;
-    bool has_reduction_;
-    bool has_range_;
-    bool has_bw_;
-    int  root_shift_;
-    ucc_pt_comm *comm;
-    ucc_coll_args_t coll_args;
+  protected:
+    bool                        has_inplace_;
+    bool                        has_reduction_;
+    bool                        has_range_;
+    bool                        has_bw_;
+    int                         root_shift_;
+    // int                         global_work_buffer_size_;       // cyx add
+    // ucc_memory_type_t           global_work_buffer_memory_type; // cyx add
+    ucc_pt_comm                *comm;
+    ucc_coll_args_t             coll_args;
     ucc_ee_executor_task_args_t executor_args;
-    ucc_mc_buffer_header_t *dst_header;
-    ucc_mc_buffer_header_t *src_header;
-public:
+    ucc_mc_buffer_header_t     *dst_header;
+    ucc_mc_buffer_header_t     *src_header;
+    ucc_mc_buffer_header_t     *global_work_buffer_header; // cyx add
+  public:
     ucc_pt_coll(ucc_pt_comm *communicator)
     {
         comm = communicator;
     }
-    virtual ucc_status_t init_args(size_t count,
-                                   ucc_pt_test_args_t &args) = 0;
-    virtual void free_args(ucc_pt_test_args_t &args) = 0;
+    virtual ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) = 0;
+    virtual void         free_args(ucc_pt_test_args_t &args)               = 0;
     virtual float get_bw(float time_ms, int grsize, ucc_pt_test_args_t args)
     {
         return 0.0;
@@ -52,177 +49,180 @@ public:
     bool has_inplace();
     bool has_range();
     bool has_bw();
-    virtual ~ucc_pt_coll() {};
+    virtual ~ucc_pt_coll(){};
 };
 
-class ucc_pt_coll_allgather: public ucc_pt_coll {
-public:
+class ucc_pt_coll_allgather : public ucc_pt_coll {
+  public:
     ucc_pt_coll_allgather(ucc_datatype_t dt, ucc_memory_type mt,
                           bool is_inplace, bool is_persistent,
                           ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
     float get_bw(float time_ms, int grsize, ucc_pt_test_args_t args) override;
 };
 
-class ucc_pt_coll_allgatherv: public ucc_pt_coll {
-public:
+class ucc_pt_coll_allgatherv : public ucc_pt_coll {
+  public:
     ucc_pt_coll_allgatherv(ucc_datatype_t dt, ucc_memory_type mt,
                            bool is_inplace, bool is_persistent,
                            ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
 };
 
-class ucc_pt_coll_allreduce: public ucc_pt_coll {
-public:
+class ucc_pt_coll_allreduce : public ucc_pt_coll {
+  public:
     ucc_pt_coll_allreduce(ucc_datatype_t dt, ucc_memory_type mt,
                           ucc_reduction_op_t op, bool is_inplace,
                           bool is_persistent, ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
     float get_bw(float time_ms, int grsize, ucc_pt_test_args_t args) override;
 };
 
-class ucc_pt_coll_alltoall: public ucc_pt_coll {
-public:
-    ucc_pt_coll_alltoall(ucc_datatype_t dt, ucc_memory_type mt,
-                         bool is_inplace, bool is_persistent,
-                         ucc_pt_comm *communicator);
+class ucc_pt_coll_alltoall : public ucc_pt_coll {
+  public:
+    ucc_pt_coll_alltoall(ucc_datatype_t dt, ucc_memory_type mt, bool is_inplace,
+                         bool is_persistent, ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
     float get_bw(float time_ms, int grsize, ucc_pt_test_args_t args) override;
 };
 
-class ucc_pt_coll_alltoallv: public ucc_pt_coll {
-public:
+class ucc_pt_coll_alltoallv : public ucc_pt_coll {
+  public:
     ucc_pt_coll_alltoallv(ucc_datatype_t dt, ucc_memory_type mt,
                           bool is_inplace, bool is_persistent,
                           ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
 };
 
-class ucc_pt_coll_barrier: public ucc_pt_coll {
-public:
+class ucc_pt_coll_barrier : public ucc_pt_coll {
+  public:
     ucc_pt_coll_barrier(ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
 };
 
-class ucc_pt_coll_bcast: public ucc_pt_coll {
-public:
+class ucc_pt_coll_bcast : public ucc_pt_coll {
+  public:
     ucc_pt_coll_bcast(ucc_datatype_t dt, ucc_memory_type mt, int root_shift,
                       bool is_persistent, ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
     float get_bw(float time_ms, int grsize, ucc_pt_test_args_t args) override;
 };
 
-class ucc_pt_coll_gather: public ucc_pt_coll {
-public:
-    ucc_pt_coll_gather(ucc_datatype_t dt, ucc_memory_type mt,
-                       bool is_inplace, bool is_persistent, int root_shift,
+class ucc_pt_coll_gather : public ucc_pt_coll {
+  public:
+    ucc_pt_coll_gather(ucc_datatype_t dt, ucc_memory_type mt, bool is_inplace,
+                       bool is_persistent, int root_shift,
                        ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
     float get_bw(float time_ms, int grsize, ucc_pt_test_args_t args) override;
 };
 
-class ucc_pt_coll_gatherv: public ucc_pt_coll {
-public:
-    ucc_pt_coll_gatherv(ucc_datatype_t dt, ucc_memory_type mt,
-                        bool is_inplace, bool is_persistent, int root_shift,
+class ucc_pt_coll_gatherv : public ucc_pt_coll {
+  public:
+    ucc_pt_coll_gatherv(ucc_datatype_t dt, ucc_memory_type mt, bool is_inplace,
+                        bool is_persistent, int root_shift,
                         ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
 };
 
-class ucc_pt_coll_reduce: public ucc_pt_coll {
-public:
+class ucc_pt_coll_reduce : public ucc_pt_coll {
+  public:
     ucc_pt_coll_reduce(ucc_datatype_t dt, ucc_memory_type mt,
-                       ucc_reduction_op_t op, bool is_inplace, bool is_persistent,
-                       int root_shift, ucc_pt_comm *communicator);
+                       ucc_reduction_op_t op, bool is_inplace,
+                       bool is_persistent, int root_shift,
+                       ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
     float get_bw(float time_ms, int grsize, ucc_pt_test_args_t args) override;
 };
 
-class ucc_pt_coll_reduce_scatter: public ucc_pt_coll {
-public:
+class ucc_pt_coll_reduce_scatter : public ucc_pt_coll {
+  public:
     ucc_pt_coll_reduce_scatter(ucc_datatype_t dt, ucc_memory_type mt,
                                ucc_reduction_op_t op, bool is_inplace,
                                bool is_persistent, ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
     float get_bw(float time_ms, int grsize, ucc_pt_test_args_t args) override;
 };
 
-class ucc_pt_coll_reduce_scatterv: public ucc_pt_coll {
-public:
+class ucc_pt_coll_reduce_scatterv : public ucc_pt_coll {
+  public:
     ucc_pt_coll_reduce_scatterv(ucc_datatype_t dt, ucc_memory_type mt,
                                 ucc_reduction_op_t op, bool is_inplace,
                                 bool is_persistent, ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
 };
 
-class ucc_pt_coll_scatter: public ucc_pt_coll {
-public:
-    ucc_pt_coll_scatter(ucc_datatype_t dt, ucc_memory_type mt,
-                        bool is_inplace, bool is_persistent, int root_shift,
+class ucc_pt_coll_scatter : public ucc_pt_coll {
+  public:
+    ucc_pt_coll_scatter(ucc_datatype_t dt, ucc_memory_type mt, bool is_inplace,
+                        bool is_persistent, int root_shift,
                         ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
     float get_bw(float time_ms, int grsize, ucc_pt_test_args_t args) override;
 };
 
-class ucc_pt_coll_scatterv: public ucc_pt_coll {
-public:
-    ucc_pt_coll_scatterv(ucc_datatype_t dt, ucc_memory_type mt,
-                         bool is_inplace, bool is_persistent, int root_shift,
+class ucc_pt_coll_scatterv : public ucc_pt_coll {
+  public:
+    ucc_pt_coll_scatterv(ucc_datatype_t dt, ucc_memory_type mt, bool is_inplace,
+                         bool is_persistent, int root_shift,
                          ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
 };
 
-class ucc_pt_op_memcpy: public ucc_pt_coll {
+class ucc_pt_op_memcpy : public ucc_pt_coll {
     ucc_memory_type_t mem_type;
     ucc_datatype_t    data_type;
     int               num_bufs;
-public:
+
+  public:
     ucc_pt_op_memcpy(ucc_datatype_t dt, ucc_memory_type mt, int nbufs,
                      ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
     float get_bw(float time_ms, int grsize, ucc_pt_test_args_t args) override;
 };
 
-class ucc_pt_op_reduce: public ucc_pt_coll {
+class ucc_pt_op_reduce : public ucc_pt_coll {
     ucc_memory_type_t  mem_type;
     ucc_datatype_t     data_type;
     ucc_reduction_op_t reduce_op;
     int                num_bufs;
-public:
+
+  public:
     ucc_pt_op_reduce(ucc_datatype_t dt, ucc_memory_type mt,
                      ucc_reduction_op_t op, int nbufs,
                      ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
     float get_bw(float time_ms, int grsize, ucc_pt_test_args_t args) override;
 };
 
-class ucc_pt_op_reduce_strided: public ucc_pt_coll {
+class ucc_pt_op_reduce_strided : public ucc_pt_coll {
     ucc_memory_type_t  mem_type;
     ucc_datatype_t     data_type;
     ucc_reduction_op_t reduce_op;
     int                num_bufs;
-public:
+
+  public:
     ucc_pt_op_reduce_strided(ucc_datatype_t dt, ucc_memory_type mt,
                              ucc_reduction_op_t op, int nbufs,
                              ucc_pt_comm *communicator);
     ucc_status_t init_args(size_t count, ucc_pt_test_args_t &args) override;
-    void free_args(ucc_pt_test_args_t &args) override;
+    void         free_args(ucc_pt_test_args_t &args) override;
     float get_bw(float time_ms, int grsize, ucc_pt_test_args_t args) override;
 };
 

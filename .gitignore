@@ -1,3 +1,5 @@
+.cache/
+compile_commands.json
 # http://www.gnu.org/software/automake
 
 Makefile.in
