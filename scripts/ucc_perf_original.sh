@@ -5,8 +5,7 @@ export PATH=$OMPI_DIR/bin:$PATH
 export LD_LIBRARY_PATH=$OMPI_DIR/lib:$LD_LIBRARY_PATH
 
 export NUMBER_OF_NODES=1
-export HOST_FILE=/home/cyx/chores/rdma-competition/mpi_hosts
-
+export HOST_FILE=/home/cyx/chores/ucc/scripts/mpi_hosts
 mpirun -np $NUMBER_OF_NODES -hostfile $HOST_FILE \
   -mca pml ucx -mca btl ^vader,tcp,openib,uct \
   -x LD_LIBRARY_PATH=$LD_LIBRARY_PATH \

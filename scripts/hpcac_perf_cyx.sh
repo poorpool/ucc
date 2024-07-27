@@ -4,7 +4,7 @@ export OMPI_DIR=/global/home/users/rdmaworkshop02/chores/tmpinstall
 export PATH=$OMPI_DIR/bin:$PATH
 export LD_LIBRARY_PATH=$OMPI_DIR/lib:$LD_LIBRARY_PATH
 
-NUMBER_OF_NODES=2
+NUMBER_OF_NODES=4
 MIN_MESSAGE_SIZE=16384 # in bytes
 MAX_MESSAGE_SIZE=16777216 # 16777216
 HOST_FILE=/global/home/users/rdmaworkshop02/chores/ucc/scripts/mpi_hosts
@@ -24,12 +24,34 @@ else
 fi
 MAX_ONESIDE_BUFFER_SIZE=$MAX_MESSAGE_SIZE # 疑似应该除以2
 
+echo "cyx allreduce"
+
 mpirun -np $NUMBER_OF_NODES -hostfile $HOST_FILE \
   -mca pml ucx -mca btl ^vader,tcp,openib,uct \
   -x LD_LIBRARY_PATH=$LD_LIBRARY_PATH \
   -x OMPI_MCA_coll_ucc_enable=1 \
   -x OMPI_MCA_coll_ucc_priority=100 \
   -x UCC_TL_UCP_TUNE="allreduce:4k-inf:@cyx" \
+  ucc_perftest -c allreduce -b $MIN_COUNTS -e $MAX_COUNTS -d float32 -O $MAX_ONESIDE_BUFFER_SIZE
+
+
+echo "default allreduce"
+
+mpirun -np $NUMBER_OF_NODES -hostfile $HOST_FILE \
+  -mca pml ucx -mca btl ^vader,tcp,openib,uct \
+  -x LD_LIBRARY_PATH=$LD_LIBRARY_PATH \
+  -x OMPI_MCA_coll_ucc_enable=1 \
+  -x OMPI_MCA_coll_ucc_priority=100 \
+  ucc_perftest -c allreduce -b $MIN_COUNTS -e $MAX_COUNTS -d float32 -O $MAX_ONESIDE_BUFFER_SIZE
+
+echo "sw allreduce"
+
+mpirun -np $NUMBER_OF_NODES -hostfile $HOST_FILE \
+  -mca pml ucx -mca btl ^vader,tcp,openib,uct \
+  -x LD_LIBRARY_PATH=$LD_LIBRARY_PATH \
+  -x OMPI_MCA_coll_ucc_enable=1 \
+  -x OMPI_MCA_coll_ucc_priority=100 \
+  -x UCC_TL_UCP_TUNE="allreduce:4k-inf:@sliding_window" \
   ucc_perftest -c allreduce -b $MIN_COUNTS -e $MAX_COUNTS -d float32 -O $MAX_ONESIDE_BUFFER_SIZE
 # -c alltoall -b 16384 -e 16777216
 #  -O $MAX_ONESIDE_BUFFER_SIZE

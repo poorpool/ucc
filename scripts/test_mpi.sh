@@ -26,12 +26,11 @@ MAX_ONESIDE_BUFFER_SIZE=$MAX_MESSAGE_SIZE # 疑似应该除以2
 
 /home/cyx/chores/tmpinstall/bin/mpirun -np $NUMBER_OF_NODES -hostfile $HOST_FILE \
   -mca pml ucx -mca btl ^vader,tcp,openib,uct \
+  -x UCX_TLS=rc \
+  -x UCX_UD_MLX5_TIMEOUT=2m \
   -x LD_LIBRARY_PATH=$LD_LIBRARY_PATH \
   -x PATH=$PATH \
-  -x OMPI_MCA_coll_ucc_enable=1 \
-  -x OMPI_MCA_coll_ucc_priority=100 \
-  -x UCC_TL_UCP_TUNE="allreduce:4k-inf:@cyx" \
-  /home/cyx/chores/tmpinstall/bin/ucc_perftest -c allreduce -b $MIN_COUNTS -e $MAX_COUNTS -d float32 -O $MAX_ONESIDE_BUFFER_SIZE
+  hostname
 # -c alltoall -b 16384 -e 16777216
 #  -O $MAX_ONESIDE_BUFFER_SIZE
 # alltoall 需要自己指定 -O $MAX_ONESIDE_BUFFER_SIZE，但是 allreduce 的 sw 实现不需要
