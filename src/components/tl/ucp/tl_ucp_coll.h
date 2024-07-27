@@ -141,6 +141,7 @@ typedef struct ucc_tl_ucp_task {
             ucc_ee_executor_t      *executor; // 用来执行 reduce 计算的 executor
             int phase;
             ucc_ee_executor_task_t *reduce_task;
+            int atomiced_cnt; // 已经进行了多少个原子操作
         } allreduce_cyx;
         struct {
             int                     phase;

@@ -131,7 +131,6 @@ ucc_status_t ucc_tl_ucp_allreduce_cyx_start(ucc_coll_task_t *coll_task)
     task->allreduce_cyx.last_pSync = 0; // 已经感知并处理完了几个 PUT
     task->allreduce_cyx.phase = ALLREDUCE_CYX_PHASE_PUTTING; // 处于 PUTTING 态
     task->allreduce_cyx.reduce_task = NULL; // 当前没有 reduce task 在进行
-    task->allreduce_cyx.atomiced_cnt = 0; // 已经进行了多少个原子操作
 
     return ucc_progress_queue_enqueue(UCC_TL_CORE_CTX(team)->pq, &task->super);
 out:
@@ -167,17 +166,8 @@ void ucc_tl_ucp_allreduce_cyx_progress(ucc_coll_task_t *coll_task)
         // 没完成就没完成，下次再来
         for (int polls = 0; polls <= task->n_polls; polls++) {
             if (UCC_TL_UCP_TASK_ONESIDED_P2P_COMPLETE(task)) {
-                task->allreduce_cyx.phase = ALLREDUCE_CYX_PHASE_IDLE;
-                break;
-            }
-            ucp_worker_progress(UCC_TL_UCP_TASK_TEAM(task)->worker->ucp_worker);
-        }
-        if (task->allreduce_cyx.atomiced_cnt < task->onesided.put_completed) {
-            if (task->onesided.put_completed <= mpi_size - 1) {
-                status =
-                    ucc_tl_ucp_atomic_inc_block((void *)pSync, peer_rank,
-                                                team); // 自己写的阻塞原子操作
-                task->allreduce_cyx.atomiced_cnt++;
+                status = ucc_tl_ucp_atomic_inc_block(
+                    (void *)pSync, peer_rank, team); // 自己写的阻塞原子操作
                 if (status < 0) {
                     tl_error(
                         UCC_TASK_LIB(task),
@@ -185,148 +175,97 @@ void ucc_tl_ucp_allreduce_cyx_progress(ucc_coll_task_t *coll_task)
                     task->super.status = status;
                     return;
                 }
-            } else if (task->onesided.put_completed == 2 * mpi_size - 2) {
-                for (int i = 0; i < mpi_size; i++) {
-                    if (i != mpi_rank) {
-                        status = ucc_tl_ucp_atomic_inc_block(
-                            (void *)pSync, i,
-                            team); // 自己写的阻塞原子操作
-                        task->allreduce_cyx.atomiced_cnt++;
-                        if (status < 0) {
-                            tl_error(UCC_TASK_LIB(task),
-                                     "allreduce_cyx "
-                                     "ucc_tl_ucp_atomic_inc_block failed");
-                            task->super.status = status;
-                            return;
-                        }
-                    }
-                }
-            } else {
-                if (task->allreduce_cyx.atomiced_cnt != mpi_size - 1) {
-                    fprintf(stderr,
-                            "cyx debuging confusing atomiced_cnt %d "
-                            "put_completed %d\n",
-                            task->allreduce_cyx.atomiced_cnt,
-                            task->onesided.put_completed);
-                }
+                task->allreduce_cyx.phase = ALLREDUCE_CYX_PHASE_IDLE;
+                break;
             }
+            ucp_worker_progress(UCC_TL_UCP_TASK_TEAM(task)->worker->ucp_worker);
         }
-        // return;
+        return;
     }
 
     if (task->allreduce_cyx.phase == ALLREDUCE_CYX_PHASE_IDLE) {
         // 还有 reduce 任务，则检查 reduce 是否完成
         if (task->allreduce_cyx.reduce_task != NULL) {
-            for (int ii = 0; ii <= task->n_polls; ii++) {
-                status =
-                    ucc_ee_executor_task_test(task->allreduce_cyx.reduce_task);
-                if (status == UCC_OK) {
-                    // 完成则释放 reduce 任务
-                    ucc_ee_executor_task_finalize(
-                        task->allreduce_cyx.reduce_task);
-                    task->allreduce_cyx.reduce_task = NULL;
-                    int xsegment_id =
-                        (mpi_rank + task->allreduce_cyx.last_pSync + mpi_size -
-                         2) %
-                        mpi_size;
-                    // 并发起 PUT
-                    ptrdiff_t put_src_by_scratch =
-                        scratch_buf + xsegment_size * xsegment_id;
-                    ptrdiff_t put_dst_by_dst =
-                        dbuf + xsegment_size * xsegment_id;
-                    status = ucc_tl_ucp_put_nb(
-                        (void *)put_dst_by_dst, (void *)put_src_by_scratch,
-                        xsegment_size, peer_rank, team, task);
-
-                    if (status < 0) {
-                        tl_error(UCC_TASK_LIB(task),
-                                 "allreduce_cyx ucc_ee_executor_task_test or "
-                                 "ucc_tl_ucp_put_nb failed");
-                        task->super.status = status;
-                        return;
-                    }
-                    task->allreduce_cyx.phase = ALLREDUCE_CYX_PHASE_PUTTING;
-                    // 如果是最后一个 reduce 任务，则还要拷贝自己的到 dst
-                    if (task->allreduce_cyx.last_pSync == mpi_size - 1) {
-                        // fprintf(stderr, "cyx debuging last_pSync %ld\n",
-                        //         task->allreduce_cyx.last_pSync);
-                        for (int i = 0; i < mpi_size; i++) {
-                            if (i != mpi_rank && i != peer_rank) {
-                                // fprintf(stderr,
-                                //         "cyx debuging batch put from %d to %d\n",
-                                //         mpi_rank, i);
-                                status = ucc_tl_ucp_put_nb(
-                                    (void *)put_dst_by_dst,
-                                    (void *)put_src_by_scratch, xsegment_size,
-                                    i, team, task);
-
-                                if (status < 0) {
-                                    tl_error(UCC_TASK_LIB(task),
-                                             "allreduce_cyx "
-                                             "ucc_ee_executor_task_test or "
-                                             "ucc_tl_ucp_put_nb failed");
-                                    task->super.status = status;
-                                    return;
-                                }
-                            }
-                        }
-                        ucc_mc_memcpy((void *)put_dst_by_dst,
-                                      (void *)put_src_by_scratch, xsegment_size,
-                                      TASK_ARGS(task).dst.info.mem_type,
-                                      TASK_ARGS(task).src.info.mem_type);
-                    }
-                    break;
+            status = ucc_ee_executor_task_test(task->allreduce_cyx.reduce_task);
+            if (status == UCC_OK) {
+                // 完成则释放 reduce 任务
+                ucc_ee_executor_task_finalize(task->allreduce_cyx.reduce_task);
+                task->allreduce_cyx.reduce_task = NULL;
+                int xsegment_id =
+                    (mpi_rank + task->allreduce_cyx.last_pSync + mpi_size - 2) %
+                    mpi_size;
+                // 并发起 PUT
+                ptrdiff_t put_src_by_scratch =
+                    scratch_buf + xsegment_size * xsegment_id;
+                ptrdiff_t put_dst_by_dst = dbuf + xsegment_size * xsegment_id;
+                status                   = ucc_tl_ucp_put_nb(
+                                      (void *)put_dst_by_dst, (void *)put_src_by_scratch,
+                                      xsegment_size, peer_rank, team, task);
+                task->allreduce_cyx.phase = ALLREDUCE_CYX_PHASE_PUTTING;
+                // 如果是最后一个 reduce 任务，则还要拷贝自己的到 dst
+                if (task->allreduce_cyx.last_pSync == mpi_size - 1) {
+                    ucc_mc_memcpy((void *)put_dst_by_dst,
+                                  (void *)put_src_by_scratch, xsegment_size,
+                                  TASK_ARGS(task).dst.info.mem_type,
+                                  TASK_ARGS(task).src.info.mem_type);
                 }
-                // ucp_worker_progress(UCC_TL_UCP_TASK_TEAM(task)->worker->ucp_worker);
-                // return;
+            }
+            if (status < 0) {
+                tl_error(UCC_TASK_LIB(task),
+                         "allreduce_cyx ucc_ee_executor_task_test or "
+                         "ucc_tl_ucp_put_nb failed");
+                task->super.status = status;
+                return;
+            }
+            // ucp_worker_progress(UCC_TL_UCP_TASK_TEAM(task)->worker->ucp_worker);
+            return;
+        }
+        // 此时没有 reduce 任务，则检查是否 pSync 变化，变化说明前一个人的 PUT 最新到达
+        if (pSync[0] > task->allreduce_cyx.last_pSync) {
+            task->allreduce_cyx.last_pSync++;
+            int xsegment_id =
+                (mpi_rank + task->allreduce_cyx.last_pSync + mpi_size - 2) %
+                mpi_size; // 刚刚收到的 xsegment 的 ID
+            ptrdiff_t reduce_start_src = sbuf + xsegment_size * xsegment_id;
+            ptrdiff_t reduce_start_dst = dbuf + xsegment_size * xsegment_id;
+            ptrdiff_t reduce_start_scratch =
+                scratch_buf + xsegment_size * xsegment_id;
+            if (task->allreduce_cyx.last_pSync <=
+                mpi_size - 1) { // 需要触发 reduce
+                // reduce 结果总是在 scratch 中
+                status = ucc_dt_reduce((void *)reduce_start_src,
+                                       (void *)reduce_start_dst,
+                                       (void *)reduce_start_scratch,
+                                       xsegment_size / ucc_dt_size(dt), dt,
+                                       args, 0, 0, task->allreduce_cyx.executor,
+                                       &task->allreduce_cyx.reduce_task);
+                if (status != UCC_OK) {
+                    tl_error(UCC_TASK_LIB(task),
+                             "failed to perform dt reduction");
+                    task->super.status = status;
+                    return;
+                }
+            } else if (task->allreduce_cyx.last_pSync <
+                       2 * mpi_size - 2) { // 不需要 reduce 但是需要传递 PUT
+                status = ucc_tl_ucp_put_nb(
+                    (void *)reduce_start_dst, (void *)reduce_start_dst,
+                    xsegment_size, peer_rank, team, task);
+                task->allreduce_cyx.phase = ALLREDUCE_CYX_PHASE_PUTTING;
+                if (status < 0) {
+                    tl_error(UCC_TASK_LIB(task),
+                             "allreduce_cyx ucc_tl_ucp_put_nb reduce failed");
+                    task->super.status = status;
+                    return;
+                }
+            } else if (task->allreduce_cyx.last_pSync ==
+                       2 * mpi_size -
+                           2) { // 我的任务完成啦（所有 PUT、atomic、reduce）
+                task->super.status = UCC_OK;
+                return;
             }
             return;
         }
-        for (int polls = 0; polls <= task->n_polls; polls++) {
-
-            // 此时没有 reduce 任务，则检查是否 pSync 变化，变化说明前一个人的 PUT 最新到达
-            if (pSync[0] > task->allreduce_cyx.last_pSync) {
-                task->allreduce_cyx.last_pSync++;
-                int xsegment_id =
-                    (mpi_rank + task->allreduce_cyx.last_pSync + mpi_size - 2) %
-                    mpi_size; // 刚刚收到的 xsegment 的 ID
-                ptrdiff_t reduce_start_src = sbuf + xsegment_size * xsegment_id;
-                ptrdiff_t reduce_start_dst = dbuf + xsegment_size * xsegment_id;
-                ptrdiff_t reduce_start_scratch =
-                    scratch_buf + xsegment_size * xsegment_id;
-                if (task->allreduce_cyx.last_pSync <=
-                    mpi_size - 1) { // 需要触发 reduce
-                    // reduce 结果总是在 scratch 中
-                    status = ucc_dt_reduce(
-                        (void *)reduce_start_src, (void *)reduce_start_dst,
-                        (void *)reduce_start_scratch,
-                        xsegment_size / ucc_dt_size(dt), dt, args, 0, 0,
-                        task->allreduce_cyx.executor,
-                        &task->allreduce_cyx.reduce_task);
-                    if (status != UCC_OK) {
-                        tl_error(UCC_TASK_LIB(task),
-                                 "failed to perform dt reduction");
-                        task->super.status = status;
-                        return;
-                    }
-                } else if (task->allreduce_cyx.last_pSync <
-                           2 * mpi_size - 2) { // 不需要 reduce 但是需要传递 PUT
-                    // do nothing because 已经发送了
-                } else if (
-                    task->allreduce_cyx.last_pSync ==
-                    2 * mpi_size -
-                        2) { // 我的任务完成啦（所有 PUT、atomic、reduce）
-                    task->super.status = UCC_OK;
-                    return;
-                }
-                return;
-            } else {
-
-                ucp_worker_progress(
-                    UCC_TL_UCP_TASK_TEAM(task)->worker->ucp_worker);
-            }
-        }
-        // return;
+        return;
     }
 }
 
