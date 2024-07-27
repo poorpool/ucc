@@ -72,6 +72,8 @@ ucc_status_t ucc_pt_coll_allreduce::init_args(size_t              count,
     if (!comm->get_onesidesize()) {
         UCCCHECK_GOTO(ucc_pt_alloc(&dst_header, size, args.dst.info.mem_type),
                       exit, st);
+    } else {
+        memset(dst_header->addr, 0, comm->get_onesidesize());
     }
     args.dst.info.buffer = dst_header->addr;
     if (!UCC_IS_INPLACE(args)) {
@@ -79,6 +81,8 @@ ucc_status_t ucc_pt_coll_allreduce::init_args(size_t              count,
             UCCCHECK_GOTO(
                 ucc_pt_alloc(&src_header, size, args.src.info.mem_type),
                 free_dst, st);
+        } else {
+            memset(src_header->addr, 0, comm->get_onesidesize());
         }
         args.src.info.buffer = src_header->addr;
     }
@@ -87,8 +91,12 @@ ucc_status_t ucc_pt_coll_allreduce::init_args(size_t              count,
         args.mask |=
             UCC_COLL_ARGS_FIELD_GLOBAL_WORK_BUFFER | UCC_COLL_ARGS_FIELD_FLAGS;
         args.global_work_buffer = global_work_buffer_header->addr;
+        memset(global_work_buffer_header->addr, 0, comm->get_onesidesize());
 
-        args.cyx_scratch.info.buffer = allreduce_cyx_scratch_buffer_header->addr;
+        args.cyx_scratch.info.buffer =
+            allreduce_cyx_scratch_buffer_header->addr;
+        memset(allreduce_cyx_scratch_buffer_header->addr, 0,
+               comm->get_onesidesize());
         args.cyx_scratch.info.count = count;
 
         args.flags |= UCC_COLL_ARGS_FLAG_MEM_MAPPED_BUFFERS;

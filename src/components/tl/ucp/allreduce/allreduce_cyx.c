@@ -61,6 +61,7 @@ ucc_status_t ucc_tl_ucp_allreduce_cyx_init(ucc_base_coll_args_t *coll_args,
     task->super.progress = ucc_tl_ucp_allreduce_cyx_progress;
     task->super.finalize = ucc_tl_ucp_allreduce_cyx_finalize;
 
+    fprintf(stderr, "\nstart my allreduce cyx!\n");
     status = UCC_OK;
 out:
     return status;
@@ -84,8 +85,9 @@ ucc_status_t ucc_tl_ucp_allreduce_cyx_start(ucc_coll_task_t *coll_task)
     size_t            count     = TASK_ARGS(task).dst.info.count;
     ucc_datatype_t    dt        = TASK_ARGS(task).dst.info.datatype;
     size_t            data_size = count * ucc_dt_size(dt);
-    volatile long    *pSync =
-        TASK_ARGS(task).global_work_buffer; // 本 rank 已经被几个人完成了 put
+    // long             *pSync =
+    //     TASK_ARGS(task).global_work_buffer; // 本 rank 已经被几个人完成了 put
+    //                                         // TODO(cyx): volatile
     ucc_status_t status;
     size_t       xsegment_size =
         data_size /
@@ -129,7 +131,7 @@ ucc_status_t ucc_tl_ucp_allreduce_cyx_start(ucc_coll_task_t *coll_task)
     }
 
     // 拷贝完以后，pSync 从 0 开始
-    pSync[0]                        = 0;
+    // pSync[0]                        = 0;// cannot set to 0!
     task->allreduce_cyx.last_pSync  = 0;
     task->allreduce_cyx.phase       = ALLREDUCE_CYX_PHASE_PUTING;
     task->allreduce_cyx.reduce_task = NULL;
@@ -164,18 +166,24 @@ void ucc_tl_ucp_allreduce_cyx_progress(ucc_coll_task_t *coll_task)
     size_t         xsegment_size =
         data_size /
         mpi_size; // 每次交换（PUT）的长度。sbuf/dbuf 被我分成很多个 xsegment
-    volatile long *pSync =
+    long *pSync =
         TASK_ARGS(task).global_work_buffer; // 本 rank 已经被几个人完成了 put
+    // TODO(cyx): volatile
     ucc_status_t status;
 
+    ucp_worker_progress(
+        UCC_TL_UCP_TASK_TEAM(task)->worker->ucp_worker); // TODO(cyx): wtf?
     // pSync 变化，说明前一个人的 PUT 最新到达，并且当前没有在进行的 reduce 任务
-    fprintf(stderr, "pSync %ld lastpSync %ld reduce_task %p phase %d\n",
-            pSync[0], task->allreduce_cyx.last_pSync,
-            task->allreduce_cyx.reduce_task, task->allreduce_cyx.phase);
+    // fprintf(stderr, "rank %d pSync %ld lastpSync %ld reduce_task %p phase %d\n",
+    //         mpi_rank, pSync[0], task->allreduce_cyx.last_pSync,
+    //         task->allreduce_cyx.reduce_task, task->allreduce_cyx.phase);
     if (pSync[0] > task->allreduce_cyx.last_pSync &&
         task->allreduce_cyx.reduce_task == NULL &&
         task->allreduce_cyx.phase == ALLREDUCE_CYX_PHASE_IDLE) {
+
         task->allreduce_cyx.last_pSync++;
+        fprintf(stderr, "rank %d received new lastPsync %ld currpSync %ld\n",
+                mpi_rank, task->allreduce_cyx.last_pSync, pSync[0]);
         int xsegment_id =
             (mpi_rank + task->allreduce_cyx.last_pSync + mpi_size - 2) %
             mpi_size; // 刚刚收到的 xsegment 的 ID
@@ -195,7 +203,7 @@ void ucc_tl_ucp_allreduce_cyx_progress(ucc_coll_task_t *coll_task)
                 task->super.status = status;
                 return;
             }
-        } else if (task->allreduce_cyx.last_pSync <= 2 * mpi_size - 2) {
+        } else if (task->allreduce_cyx.last_pSync < 2 * mpi_size - 2) {
             status = ucc_tl_ucp_put_nb((void *)reduce_start_dst,
                                        (void *)reduce_start_dst, xsegment_size,
                                        peer_rank, team, task);
@@ -206,6 +214,16 @@ void ucc_tl_ucp_allreduce_cyx_progress(ucc_coll_task_t *coll_task)
                 task->super.status = status;
                 return;
             }
+        } else if (task->allreduce_cyx.last_pSync == 2 * mpi_size - 2) {
+            for (int i = 0; i < task->n_polls;
+                 i++) { // TODO(cyx): holy shit so ugly
+                ucp_worker_progress(
+                    UCC_TL_UCP_TASK_TEAM(task)->worker->ucp_worker);
+            }
+            fprintf(stderr, "rank %d finished allreduce UCC_OK in first\n",
+                    mpi_rank);
+            task->super.status = UCC_OK;
+            return;
         }
         return;
     }
@@ -214,11 +232,16 @@ void ucc_tl_ucp_allreduce_cyx_progress(ucc_coll_task_t *coll_task)
         int polls = 0;
 
         if (UCC_TL_UCP_TASK_ONESIDED_P2P_COMPLETE(task)) {
+            fprintf(stderr,
+                    "rank %d has finished %d putings. cur last_pSync %ld\n",
+                    mpi_rank, task->onesided.put_completed,
+                    task->allreduce_cyx.last_pSync);
             // 转 atomic
-            status = ucc_tl_ucp_atomic_inc((void *)pSync, peer_rank, team);
+            status =
+                ucc_tl_ucp_atomic_inc_block((void *)pSync, peer_rank, team);
             if (status < 0) {
                 tl_error(UCC_TASK_LIB(task),
-                         "allreduce_cyx ucc_tl_ucp_atomic_inc failed");
+                         "allreduce_cyx ucc_tl_ucp_atomic_inc_block failed");
                 task->super.status = status;
                 return;
             }
@@ -227,10 +250,16 @@ void ucc_tl_ucp_allreduce_cyx_progress(ucc_coll_task_t *coll_task)
         }
         while (polls++ < task->n_polls) {
             if (UCC_TL_UCP_TASK_ONESIDED_P2P_COMPLETE(task)) {
-                status = ucc_tl_ucp_atomic_inc((void *)pSync, peer_rank, team);
+                fprintf(stderr,
+                        "rank %d has finished %d putings. cur last_pSync %ld\n",
+                        mpi_rank, task->onesided.put_completed,
+                        task->allreduce_cyx.last_pSync);
+                status =
+                    ucc_tl_ucp_atomic_inc_block((void *)pSync, peer_rank, team);
                 if (status < 0) {
-                    tl_error(UCC_TASK_LIB(task),
-                             "allreduce_cyx ucc_tl_ucp_atomic_inc failed");
+                    tl_error(
+                        UCC_TASK_LIB(task),
+                        "allreduce_cyx ucc_tl_ucp_atomic_inc_block failed");
                     task->super.status = status;
                     return;
                 }
@@ -243,7 +272,10 @@ void ucc_tl_ucp_allreduce_cyx_progress(ucc_coll_task_t *coll_task)
     }
     if (task->allreduce_cyx.phase == ALLREDUCE_CYX_PHASE_ATOMICING) {
         // TODO(cyx): 检查 atomic，完成转 idle
-        ucp_worker_progress(UCC_TL_UCP_TASK_TEAM(task)->worker->ucp_worker);
+        for (int i = 0; i < task->n_polls;
+             i++) { // TODO(cyx): holy shit so ugly
+            ucp_worker_progress(UCC_TL_UCP_TASK_TEAM(task)->worker->ucp_worker);
+        }
         task->allreduce_cyx.phase = ALLREDUCE_CYX_PHASE_IDLE;
         return;
     }
@@ -251,8 +283,14 @@ void ucc_tl_ucp_allreduce_cyx_progress(ucc_coll_task_t *coll_task)
         // TODO(cyx): 检查是否到达  2mpisize - 1。到达则完成。
         // TODO(cyx): 检查 reduce_task 是否完成，完成转 putting
         if (task->allreduce_cyx.reduce_task == NULL &&
-            task->allreduce_cyx.last_pSync == 2 * mpi_size - 1) {
-            ucp_worker_progress(UCC_TL_UCP_TASK_TEAM(task)->worker->ucp_worker);
+            task->allreduce_cyx.last_pSync == 2 * mpi_size - 2) {
+            for (int i = 0; i < task->n_polls;
+                 i++) { // TODO(cyx): holy shit so ugly
+                ucp_worker_progress(
+                    UCC_TL_UCP_TASK_TEAM(task)->worker->ucp_worker);
+            }
+            fprintf(stderr, "rank %d finished allreduce UCC_OK in second\n",
+                    mpi_rank);
             task->super.status = UCC_OK;
             return;
         }
@@ -261,6 +299,8 @@ void ucc_tl_ucp_allreduce_cyx_progress(ucc_coll_task_t *coll_task)
         }
         status = ucc_ee_executor_task_test(task->allreduce_cyx.reduce_task);
         if (status == UCC_OK) {
+            fprintf(stderr, "rank %d finished a reduce %ld\n", mpi_rank,
+                    task->allreduce_cyx.last_pSync);
             ucc_ee_executor_task_finalize(task->allreduce_cyx.reduce_task);
             task->allreduce_cyx.reduce_task = NULL;
             int xsegment_id =

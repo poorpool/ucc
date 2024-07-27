@@ -6,6 +6,7 @@
  */
 
 #include "config.h"
+#include <ucp/api/ucp.h>
 
 #ifndef UCC_TL_UCP_SENDRECV_H_
 #define UCC_TL_UCP_SENDRECV_H_
@@ -446,6 +447,54 @@ static inline ucc_status_t ucc_tl_ucp_atomic_inc(void      *target,
         if (UCS_PTR_IS_ERR(ucp_status)) {
             return ucs_status_to_ucc_status(UCS_PTR_STATUS(ucp_status));
         }
+        ucp_request_free(ucp_status);
+    }
+    return UCC_OK;
+}
+
+static inline ucc_status_t
+ucc_tl_ucp_atomic_inc_block(void *target, ucc_rank_t dest_group_rank,
+                            ucc_tl_ucp_team_t *team)
+{
+    ucp_request_param_t req_param = {0};
+    int                 segment   = 0;
+    uint64_t            one       = 1;
+    ucp_rkey_h          rkey      = NULL;
+    uint64_t            rva       = 0;
+    ucs_status_ptr_t    ucp_status;
+    ucc_status_t        status;
+    ucp_ep_h            ep;
+
+    status = ucc_tl_ucp_get_ep(team, dest_group_rank, &ep);
+    if (ucc_unlikely(UCC_OK != status)) {
+        return status;
+    }
+
+    status = ucc_tl_ucp_resolve_p2p_by_va(team, target, &ep, dest_group_rank,
+                                          &rva, &rkey, &segment);
+    if (ucc_unlikely(UCC_OK != status)) {
+        return status;
+    }
+
+    req_param.op_attr_mask = UCP_OP_ATTR_FIELD_DATATYPE;
+    req_param.datatype     = ucp_dt_make_contig(sizeof(uint64_t));
+
+    ucp_status = ucp_atomic_op_nbx(ep, UCP_ATOMIC_OP_ADD, &one, 1, rva, rkey,
+                                   &req_param);
+
+    fprintf(stderr, "cyx debug atomic_inc to_rank %d status %d\n",
+            dest_group_rank, UCS_PTR_STATUS(ucp_status));
+    if (UCS_OK != ucp_status) {
+        if (UCS_PTR_IS_ERR(ucp_status)) {
+            return ucs_status_to_ucc_status(UCS_PTR_STATUS(ucp_status));
+        }
+        ucs_status_t st;
+        do {
+            ucp_worker_progress(team->worker->ucp_worker);
+            st = ucp_request_check_status(ucp_status);
+        } while (st == UCS_INPROGRESS);
+        fprintf(stderr, "cyx debug to_rank %d atomic_inc finished\n",
+                dest_group_rank);
         ucp_request_free(ucp_status);
     }
     return UCC_OK;
