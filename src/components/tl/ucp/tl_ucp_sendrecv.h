@@ -482,8 +482,6 @@ ucc_tl_ucp_atomic_inc_block(void *target, ucc_rank_t dest_group_rank,
     ucp_status = ucp_atomic_op_nbx(ep, UCP_ATOMIC_OP_ADD, &one, 1, rva, rkey,
                                    &req_param);
 
-    fprintf(stderr, "cyx debug atomic_inc to_rank %d status %d\n",
-            dest_group_rank, UCS_PTR_STATUS(ucp_status));
     if (UCS_OK != ucp_status) {
         if (UCS_PTR_IS_ERR(ucp_status)) {
             return ucs_status_to_ucc_status(UCS_PTR_STATUS(ucp_status));
@@ -493,8 +491,6 @@ ucc_tl_ucp_atomic_inc_block(void *target, ucc_rank_t dest_group_rank,
             ucp_worker_progress(team->worker->ucp_worker);
             st = ucp_request_check_status(ucp_status);
         } while (st == UCS_INPROGRESS);
-        fprintf(stderr, "cyx debug to_rank %d atomic_inc finished\n",
-                dest_group_rank);
         ucp_request_free(ucp_status);
     }
     return UCC_OK;
